@@ -73,6 +73,13 @@ def health():
 
 @app.route('/compare')
 def compare():
+    '''
+    curl 'localhost:5000/compare?string1=france&string2=paris'
+    :return:
+    {
+        "result": 0.7916327755099385
+    }
+    '''
     string1 = request.args.get('string1')
     string2 = request.args.get('string2')
     if string1 is None or string2 is None:
@@ -88,5 +95,55 @@ def compare():
     return flask.jsonify(result)
 
 
+# https://stackoverflow.com/questions/8603088/sqlalchemy-in-clause
+@app.route('/vectors', methods=['POST'])
+def retrieve_vectors():
+    '''
+    curl --header "Content-type: application/json" -XPOST -d '{"strings": ["hello", "united states"]}' http://localhost:5000/vectors
+    :return:
+    [
+        {
+            "string": "hello",
+            "vector": [
+                0.25233,
+                0.10176,
+                -0.67485,
+                ...
+            ]
+        },
+        {
+            "string": "united states",
+            "vector": null
+        }
+    ]
+    '''
+    request_json = request.get_json()
+    print request_json
+    if request_json is None or 'strings' not in request_json:
+        return BadRequest(
+            'json not formatted properly, expecting json of type "strings": ["string1", "string2", string3"]')
+
+    request_strings = set(request_json['strings'])
+    sql_query_results = WordVector.query.filter(WordVector.string.in_(request_strings))
+
+    result = []
+
+    for sql_query_result in sql_query_results:
+        result.append({
+            "string": sql_query_result.string,
+            "vector": sql_query_result.vector
+        })
+        request_strings.remove(sql_query_result.string)
+
+    for remaining_str in request_strings:
+        result.append({
+            "string": remaining_str,
+            "vector": None
+        })
+
+    return flask.jsonify(result)
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
+
